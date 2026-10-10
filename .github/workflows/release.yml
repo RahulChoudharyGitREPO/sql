@@ -36,11 +36,25 @@ jobs:
         run: |
           python build_exe.py
 
+      - name: Extract Tag Message
+        id: tag_info
+        shell: bash
+        run: |
+          MSG=$(git tag -l --format='%(contents)' ${{ github.ref_name }})
+          if [ -n "$MSG" ]; then
+            echo "notes<<EOF" >> $GITHUB_OUTPUT
+            echo "$MSG" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "notes=• Performance and UI improvements" >> $GITHUB_OUTPUT
+          fi
+
       - name: Create Release and Upload Asset
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
           name: "SQL Studio ${{ github.ref_name }}"
+          body: ${{ steps.tag_info.outputs.notes }}
           draft: false
           prerelease: false
           generate_release_notes: true

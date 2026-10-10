@@ -1,3 +1,32 @@
+function formatReleaseNotes(rawNotes) {
+  if (!rawNotes || !rawNotes.trim()) {
+    return "<p style='margin:0; color:#94a3b8;'>• Includes bug fixes, performance improvements, and UI enhancements.</p>";
+  }
+  
+  let lines = rawNotes.split("\n");
+  let formatted = [];
+  
+  for (let line of lines) {
+    let l = line.trim();
+    if (!l || l.startsWith("**Full Changelog**") || l.startsWith("https://github.com")) continue;
+    
+    if (l.startsWith("- ") || l.startsWith("* ") || l.startsWith("• ")) {
+      let content = l.substring(2).trim();
+      formatted.push(`<div style="display: flex; align-items: flex-start; gap: 8px; margin-bottom: 6px;">
+        <span style="color: #fbbf24; font-size: 0.9rem;">•</span>
+        <span style="color: #f1f5f9;">${escapeHtml(content).replace(/\*\*(.*?)\*\*/g, '<strong style="color:#ffffff;">$1</strong>')}</span>
+      </div>`);
+    } else {
+      formatted.push(`<div style="display: flex; align-items: flex-start; gap: 8px; margin-bottom: 6px;">
+        <span style="color: #fbbf24; font-size: 0.9rem;">•</span>
+        <span style="color: #f1f5f9;">${escapeHtml(l).replace(/\*\*(.*?)\*\*/g, '<strong style="color:#ffffff;">$1</strong>')}</span>
+      </div>`);
+    }
+  }
+  
+  return formatted.length > 0 ? formatted.join("") : "<p style='margin:0; color:#94a3b8;'>• Performance and UI improvements.</p>";
+}
+
 /**
  * SQL Studio — Pro Database Client Frontend Engine
  * Handles Multi-tab CodeMirror, Query Execution, Grid Rendering, Free Import/Export, and Table Editing.
@@ -1150,7 +1179,7 @@ function openUpdateModal() {
     const pubDate = cachedUpdateData.published_at ? new Date(cachedUpdateData.published_at).toLocaleDateString() : "Latest";
     dateEl.textContent = `Released: ${pubDate}`;
   }
-  if (notesEl) notesEl.textContent = cachedUpdateData.release_notes || "Includes bug fixes and performance improvements.";
+  if (notesEl) notesEl.innerHTML = formatReleaseNotes(cachedUpdateData.release_notes);
   
   // Wire update action button
   if (btnPerform) {
