@@ -864,19 +864,23 @@ def perform_update(req: PerformUpdateRequest):
 setlocal
 echo ========================================================
 echo Updating SQL Studio...
-echo Waiting for existing instance to stop...
 echo ========================================================
 timeout /t 2 /nobreak >nul
-:wait_loop
-tasklist /fi "PID eq {pid}" | findstr "{pid}" >nul
-if %ERRORLEVEL% == 0 (
-    timeout /t 1 /nobreak >nul
-    goto wait_loop
+taskkill /F /PID {pid} /T >nul 2>&1
+taskkill /F /IM SQLStudio.exe >nul 2>&1
+timeout /t 2 /nobreak >nul
+
+echo Replacing executable...
+copy /y "{new_exe_path}" "{target_exe}" >nul
+if %ERRORLEVEL% NEQ 0 (
+    timeout /t 2 /nobreak >nul
+    copy /y "{new_exe_path}" "{target_exe}" >nul
 )
-echo Replacing binary...
-copy /y "{new_exe_path}" "{target_exe}"
-echo Starting updated SQL Studio...
+
+echo Starting fresh SQL Studio...
+timeout /t 1 /nobreak >nul
 start "" "{target_exe}"
+timeout /t 2 /nobreak >nul
 del "%~f0"
 """
         with open(batch_script, "w", encoding="utf-8") as f:
