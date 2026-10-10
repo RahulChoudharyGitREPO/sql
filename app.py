@@ -728,6 +728,22 @@ def get_version():
         "data_dir": str(DATA_DIR)
     }
 
+
+# Global Update Download Progress Tracker
+UPDATE_PROGRESS = {
+    "status": "idle",
+    "bytes_downloaded": 0,
+    "total_bytes": 0,
+    "percent": 0,
+    "mb_downloaded": 0.0,
+    "mb_total": 0.0,
+    "error": None
+}
+
+@app.get("/api/update_progress")
+def get_update_progress():
+    return UPDATE_PROGRESS
+
 @app.get("/api/check_update")
 def check_update():
     import urllib.request
@@ -751,10 +767,14 @@ def check_update():
         
         # Look for SQLStudio.exe asset or binary asset
         download_url = None
+        asset_size_bytes = 0
+        asset_size_mb = 0.0
         for asset in data.get("assets", []):
             name = asset.get("name", "").lower()
             if name.endswith(".exe"):
                 download_url = asset.get("browser_download_url")
+                asset_size_bytes = asset.get("size", 0)
+                asset_size_mb = round(asset_size_bytes / (1024 * 1024), 1)
                 break
                 
         if not download_url:
@@ -768,6 +788,8 @@ def check_update():
             "release_name": data.get("name") or latest_tag,
             "release_notes": data.get("body", "Bug fixes and improvements."),
             "download_url": download_url,
+            "asset_size_bytes": asset_size_bytes,
+            "asset_size_mb": asset_size_mb,
             "published_at": data.get("published_at"),
             "html_url": data.get("html_url")
         }
@@ -791,6 +813,8 @@ def perform_update(req: PerformUpdateRequest):
     import urllib.request
     import subprocess
     import threading
+    global UPDATE_PROGRESS
+    
     try:
         url = req.download_url
         if not url:
@@ -800,14 +824,32 @@ def perform_update(req: PerformUpdateRequest):
         updates_dir.mkdir(parents=True, exist_ok=True)
         new_exe_path = updates_dir / "SQLStudio_latest.exe"
         
-        # Download new binary
+        UPDATE_PROGRESS["status"] = "downloading"
+        UPDATE_PROGRESS["bytes_downloaded"] = 0
+        UPDATE_PROGRESS["percent"] = 0
+        UPDATE_PROGRESS["error"] = None
+        
+        # Download new binary with progress tracking
         req_obj = urllib.request.Request(url, headers={"User-Agent": "SQLStudio-Updater"})
-        with urllib.request.urlopen(req_obj, timeout=120) as response, open(new_exe_path, "wb") as out_file:
+        with urllib.request.urlopen(req_obj, timeout=180) as response, open(new_exe_path, "wb") as out_file:
+            total_length = response.headers.get('content-length')
+            total_bytes = int(total_length) if total_length else 55000000
+            UPDATE_PROGRESS["total_bytes"] = total_bytes
+            UPDATE_PROGRESS["mb_total"] = round(total_bytes / (1024 * 1024), 1)
+            downloaded = 0
+            
             while True:
-                chunk = response.read(65536)
+                chunk = response.read(131072) # 128KB chunks
                 if not chunk:
                     break
                 out_file.write(chunk)
+                downloaded += len(chunk)
+                UPDATE_PROGRESS["bytes_downloaded"] = downloaded
+                UPDATE_PROGRESS["mb_downloaded"] = round(downloaded / (1024 * 1024), 1)
+                UPDATE_PROGRESS["percent"] = min(99, int((downloaded / total_bytes) * 100)) if total_bytes > 0 else 50
+                
+        UPDATE_PROGRESS["status"] = "applying"
+        UPDATE_PROGRESS["percent"] = 100
                 
         # Determine target exe path
         if getattr(sys, 'frozen', False):
