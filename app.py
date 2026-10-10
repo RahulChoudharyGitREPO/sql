@@ -269,49 +269,50 @@ def get_tables():
     """Get tables, views, column details, and row counts."""
     conn = get_connection()
     cursor = conn.cursor()
-    
-    cursor.execute("""
-    SELECT name, type 
-    FROM sqlite_master 
-    WHERE type IN ('table', 'view') AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_studio_%'
-    ORDER BY name ASC;
-    """)
-    tables_meta = cursor.fetchall()
-    
-    result = []
-    for row in tables_meta:
-        t_name = row["name"]
-        t_type = row["type"]
+    try:
+        cursor.execute("""
+        SELECT name, type 
+        FROM sqlite_master 
+        WHERE type IN ('table', 'view') AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_studio_%'
+        ORDER BY name ASC;
+        """)
+        tables_meta = cursor.fetchall()
         
-        # Row count
-        try:
-            cursor.execute(f'SELECT COUNT(*) FROM "{t_name}";')
-            cnt = cursor.fetchone()[0]
-        except Exception:
-            cnt = 0
+        result = []
+        for row in tables_meta:
+            t_name = row["name"]
+            t_type = row["type"]
             
-        # Columns
-        cursor.execute(f'PRAGMA table_info("{t_name}");')
-        cols = []
-        for c in cursor.fetchall():
-            cols.append({
-                "cid": c[0],
-                "name": c[1],
-                "type": c[2] or "TEXT",
-                "notnull": bool(c[3]),
-                "dflt_value": c[4],
-                "pk": bool(c[5])
+            # Row count
+            try:
+                cursor.execute(f'SELECT COUNT(*) FROM "{t_name}";')
+                cnt = cursor.fetchone()[0]
+            except Exception:
+                cnt = 0
+                
+            # Columns
+            cursor.execute(f'PRAGMA table_info("{t_name}");')
+            cols = []
+            for c in cursor.fetchall():
+                cols.append({
+                    "cid": c[0],
+                    "name": c[1],
+                    "type": c[2] or "TEXT",
+                    "notnull": bool(c[3]),
+                    "dflt_value": c[4],
+                    "pk": bool(c[5])
+                })
+                
+            result.append({
+                "name": t_name,
+                "type": t_type,
+                "row_count": cnt,
+                "columns": cols
             })
             
-        result.append({
-            "name": t_name,
-            "type": t_type,
-            "row_count": cnt,
-            "columns": cols
-        })
-        
-    conn.close()
-    return {"tables": result, "database": os.path.basename(CURRENT_DB_PATH)}
+        return {"tables": result, "database": os.path.basename(CURRENT_DB_PATH)}
+    finally:
+        conn.close()
 
 @app.post("/api/query")
 def execute_query(req: QueryRequest):
@@ -374,56 +375,65 @@ def execute_query(req: QueryRequest):
 @app.get("/api/table/{table_name}/data")
 def get_table_data(
     table_name: str,
-    limit: int = 100,
+    limit: int = 200,
     offset: int = 0,
     sort_by: Optional[str] = None,
     sort_dir: Optional[str] = "ASC",
     search: Optional[str] = None
 ):
-    """Fetch paginated data for table viewer."""
+    """Fetch paginated data for table viewer with safe type serialization and robust error handling."""
     conn = get_connection()
     cursor = conn.cursor()
-    
-    # Get columns
-    cursor.execute(f'PRAGMA table_info("{table_name}");')
-    cols_info = cursor.fetchall()
-    columns = [c[1] for c in cols_info]
-    pk_col = next((c[1] for c in cols_info if c[5]), columns[0] if columns else "rowid")
-    
-    where_clause = ""
-    params = []
-    if search and search.strip():
-        search_terms = []
-        for col in columns:
-            search_terms.append(f'CAST("{col}" AS TEXT) LIKE ?')
-            params.append(f"%{search.strip()}%")
-        where_clause = "WHERE " + " OR ".join(search_terms)
+    try:
+        # Get columns
+        cursor.execute(f'PRAGMA table_info("{table_name}");')
+        cols_info = cursor.fetchall()
+        columns = [c[1] for c in cols_info]
+        pk_col = next((c[1] for c in cols_info if c[5]), columns[0] if columns else "rowid")
         
-    order_clause = ""
-    if sort_by and sort_by in columns:
-        dir_clean = "DESC" if sort_dir.upper() == "DESC" else "ASC"
-        order_clause = f'ORDER BY "{sort_by}" {dir_clean}'
+        where_clause = ""
+        params = []
+        if search and search.strip():
+            search_terms = []
+            for col in columns:
+                search_terms.append(f'CAST("{col}" AS TEXT) LIKE ?')
+                params.append(f"%{search.strip()}%")
+            where_clause = "WHERE " + " OR ".join(search_terms)
+            
+        order_clause = ""
+        if sort_by and sort_by in columns:
+            dir_clean = "DESC" if sort_dir.upper() == "DESC" else "ASC"
+            order_clause = f'ORDER BY "{sort_by}" {dir_clean}'
+            
+        # Total count
+        cursor.execute(f'SELECT COUNT(*) FROM "{table_name}" {where_clause};', params)
+        total_rows = cursor.fetchone()[0]
         
-    # Total count
-    cursor.execute(f'SELECT COUNT(*) FROM "{table_name}" {where_clause};', params)
-    total_rows = cursor.fetchone()[0]
-    
-    # Rows
-    query = f'SELECT * FROM "{table_name}" {where_clause} {order_clause} LIMIT ? OFFSET ?;'
-    cursor.execute(query, params + [limit, offset])
-    raw_rows = cursor.fetchall()
-    rows = [list(r) for r in raw_rows]
-    
-    conn.close()
-    return {
-        "table": table_name,
-        "columns": columns,
-        "pk_col": pk_col,
-        "rows": rows,
-        "total_rows": total_rows,
-        "limit": limit,
-        "offset": offset
-    }
+        # Rows
+        query = f'SELECT * FROM "{table_name}" {where_clause} {order_clause} LIMIT ? OFFSET ?;'
+        cursor.execute(query, params + [limit, offset])
+        raw_rows = cursor.fetchall()
+        rows = [
+            [
+                str(cell) if isinstance(cell, (bytes, bytearray, memoryview)) else cell
+                for cell in r
+            ]
+            for r in raw_rows
+        ]
+        
+        return {
+            "table": table_name,
+            "columns": columns,
+            "pk_col": pk_col,
+            "rows": rows,
+            "total_rows": total_rows,
+            "limit": limit,
+            "offset": offset
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    finally:
+        conn.close()
 
 @app.post("/api/table/cell/update")
 def update_cell(req: UpdateCellRequest):
@@ -704,7 +714,7 @@ def save_query(req: SaveQueryRequest):
 # AUTO-UPDATER SYSTEM (GitHub Releases Integration)
 # ===========================================================================
 
-APP_VERSION = "1.0.2"
+APP_VERSION = "1.0.3"
 GITHUB_REPO = "RahulChoudharyGitREPO/sql"
 
 def parse_version(v_str: str):

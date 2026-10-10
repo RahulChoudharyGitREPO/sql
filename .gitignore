@@ -35,3 +35,6 @@ data/
 *.swp
 *.bak
 *.log
+
+# Temporary updater downloads
+updates/

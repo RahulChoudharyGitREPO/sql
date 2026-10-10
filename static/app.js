@@ -642,49 +642,99 @@ async function loadActiveTableData(tableName, search = "") {
     const res = await fetch(url);
     const data = await res.json();
 
+    if (!res.ok) {
+      throw new Error(data.detail || `HTTP ${res.status}: Failed to load table data`);
+    }
+
     if (countEl) countEl.textContent = `(${data.total_rows} total records)`;
+
+    const columns = data.columns || [];
+    const pkCol = data.pk_col || (columns.length > 0 ? columns[0] : "");
+    const pkIdx = columns.indexOf(pkCol);
 
     let html = '<table class="data-table"><thead><tr>';
     html += '<th style="width: 40px; text-align: center;">#</th>';
-    data.columns.forEach(col => {
-      const isPk = col === data.pk_col;
+    columns.forEach(col => {
+      const isPk = col === pkCol;
       html += `<th>${isPk ? '<i class="fa-solid fa-key" style="color: #fbbf24; font-size: 0.7rem;"></i> ' : ''}${escapeHtml(col)}</th>`;
     });
     html += '<th style="width: 60px; text-align: center;">Actions</th></tr></thead><tbody>';
 
     if (!data.rows || data.rows.length === 0) {
-      html += `<tr><td colspan="${data.columns.length + 2}" style="text-align: center; padding: 24px; color: #64748b;">No records found in table '${escapeHtml(tableName)}'.</td></tr>`;
-    } else {
-      data.rows.forEach((row, rIdx) => {
-        const pkVal = row[data.columns.indexOf(data.pk_col)];
-        html += `<tr><td style="text-align: center; color: #64748b;">${rIdx + 1}</td>`;
-        
-        data.columns.forEach((col, cIdx) => {
-          const cell = row[cIdx];
-          const isNull = cell === null || cell === undefined;
-          html += `
-            <td class="${isNull ? 'null-val' : ''}" 
-                ondblclick="makeCellEditable(this, '${escapeQuotes(tableName)}', '${escapeQuotes(data.pk_col)}', '${escapeQuotes(pkVal)}', '${escapeQuotes(col)}')"
-                title="Double click to edit">
-              ${isNull ? 'NULL' : escapeHtml(String(cell))}
-            </td>
-          `;
-        });
-
-        html += `
-          <td style="text-align: center;">
-            <button class="btn-icon" style="color: #ef4444;" onclick="deleteActiveTableRow('${escapeQuotes(tableName)}', '${escapeQuotes(data.pk_col)}', '${escapeQuotes(pkVal)}')">
-              <i class="fa-solid fa-trash-can"></i>
-            </button>
-          </td>
-        </tr>`;
-      });
+      html += `<tr><td colspan="${columns.length + 2}" style="text-align: center; padding: 24px; color: #64748b;">No records found in table '${escapeHtml(tableName)}'.</td></tr>`;
+      html += '</tbody></table>';
+      gridEl.innerHTML = html;
+      return;
     }
+
+    data.rows.forEach((row, rIdx) => {
+      const pkVal = (pkIdx >= 0 && row[pkIdx] !== undefined && row[pkIdx] !== null) ? row[pkIdx] : (row[0] ?? "");
+      html += `<tr data-row-idx="${rIdx}"><td style="text-align: center; color: #64748b;">${rIdx + 1}</td>`;
+      
+      columns.forEach((col, cIdx) => {
+        const cell = row[cIdx];
+        const isNull = cell === null || cell === undefined;
+        html += `
+          <td class="table-cell-editable ${isNull ? 'null-val' : ''}" 
+              data-table="${escapeHtml(tableName)}"
+              data-pk-col="${escapeHtml(pkCol)}"
+              data-pk-val="${escapeHtml(String(pkVal))}"
+              data-col-name="${escapeHtml(col)}"
+              title="Double click to edit">
+            ${isNull ? 'NULL' : escapeHtml(String(cell))}
+          </td>
+        `;
+      });
+
+      html += `
+        <td style="text-align: center;">
+          <button class="btn-icon btn-delete-row" style="color: #ef4444;" 
+                  data-table="${escapeHtml(tableName)}"
+                  data-pk-col="${escapeHtml(pkCol)}"
+                  data-pk-val="${escapeHtml(String(pkVal))}"
+                  title="Delete Row">
+            <i class="fa-solid fa-trash-can"></i>
+          </button>
+        </td>
+      </tr>`;
+    });
 
     html += '</tbody></table>';
     gridEl.innerHTML = html;
+
+    // Attach listeners
+    gridEl.querySelectorAll(".table-cell-editable").forEach(td => {
+      td.addEventListener("dblclick", function() {
+        makeCellEditable(
+          this,
+          this.dataset.table,
+          this.dataset.pkCol,
+          this.dataset.pkVal,
+          this.dataset.colName
+        );
+      });
+    });
+
+    gridEl.querySelectorAll(".btn-delete-row").forEach(btn => {
+      btn.addEventListener("click", function(e) {
+        e.stopPropagation();
+        deleteActiveTableRow(
+          this.dataset.table,
+          this.dataset.pkCol,
+          this.dataset.pkVal
+        );
+      });
+    });
+
   } catch (err) {
-    gridEl.innerHTML = `<div class="error-banner">Error loading table: ${escapeHtml(err.message)}</div>`;
+    gridEl.innerHTML = `
+      <div class="error-banner" style="display: flex; justify-content: space-between; align-items: center;">
+        <span><strong>Error loading table:</strong> ${escapeHtml(err.message)}</span>
+        <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.75rem;" onclick="loadActiveTableData('${escapeQuotes(tableName)}')">
+          <i class="fa-solid fa-rotate"></i> Retry
+        </button>
+      </div>
+    `;
   }
 }
 
@@ -716,7 +766,7 @@ function exportActiveTable(format) {
 async function deleteActiveTableRow(table, pkCol, pkVal) {
   if (!confirm(`Are you sure you want to delete this row where ${pkCol} = ${pkVal}?`)) return;
   try {
-    await fetch("/api/table/row/delete", {
+    const res = await fetch("/api/table/row/delete", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -725,6 +775,9 @@ async function deleteActiveTableRow(table, pkCol, pkVal) {
         primary_key_val: pkVal
       })
     });
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.detail || "Delete failed");
+    showToast("Row deleted", "info");
     refreshActiveTableData();
     loadTables();
   } catch (err) {
@@ -1080,12 +1133,12 @@ async function executeInsertRow() {
     if (!res.ok) throw new Error(result.detail || "Insert failed");
 
     closeModal("modal-insert-row");
-    // Refresh table viewer if currently open
-    tabs.forEach(t => {
-      if (t.type === 'table' && t.tableName === activeInsertTable) {
-        loadTableDataForTab(t.id, activeInsertTable);
-      }
-    });
+    showToast("Row inserted successfully", "success");
+    if (activeTableName === activeInsertTable) {
+      loadActiveTableData(activeInsertTable);
+    } else {
+      showTableViewer(activeInsertTable);
+    }
     loadTables();
   } catch (err) {
     alert("Insert Error: " + err.message);
@@ -1365,3 +1418,26 @@ function dismissMadeByCard() {
 }
 
 
+
+
+function showToast(message, type = "info") {
+  let toastContainer = document.getElementById("toast-container");
+  if (!toastContainer) {
+    toastContainer = document.createElement("div");
+    toastContainer.id = "toast-container";
+    toastContainer.className = "toast-container";
+    document.body.appendChild(toastContainer);
+  }
+  const toast = document.createElement("div");
+  toast.className = `toast-message toast-${type}`;
+  const icon = type === "success" ? "fa-circle-check" : type === "error" ? "fa-circle-xmark" : "fa-circle-info";
+  toast.innerHTML = `<i class="fa-solid ${icon}"></i> <span>${escapeHtml(message)}</span>`;
+  toastContainer.appendChild(toast);
+  setTimeout(() => {
+    toast.classList.add("show");
+  }, 10);
+  setTimeout(() => {
+    toast.classList.remove("show");
+    setTimeout(() => toast.remove(), 300);
+  }, 3000);
+}
