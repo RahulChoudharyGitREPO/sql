@@ -16,6 +16,8 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
@@ -36,28 +38,43 @@ jobs:
         run: |
           python build_exe.py
 
-      - name: Extract Tag Message
-        id: tag_info
+      - name: Generate Automated Changelog
+        id: changelog_gen
         shell: bash
         run: |
-          MSG=$(git tag -l --format='%(contents)' ${{ github.ref_name }})
-          if [ -n "$MSG" ]; then
-            echo "notes<<EOF" >> $GITHUB_OUTPUT
-            echo "$MSG" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
+          echo "Generating automated release notes..."
+          TAG_MSG=$(git tag -l --format='%(contents)' ${{ github.ref_name }} | sed '/^[[:space:]]*$/d')
+          
+          # Find previous tag
+          PREV_TAG=$(git describe --tags --abbrev=0 "${{ github.ref_name }}^" 2>/dev/null || echo "")
+          
+          if [ -n "$PREV_TAG" ]; then
+            COMMITS=$(git log "${PREV_TAG}..${{ github.ref_name }}" --pretty=format:"- %s" --no-merges)
           else
-            echo "notes=• Performance and UI improvements" >> $GITHUB_OUTPUT
+            COMMITS=$(git log -n 10 --pretty=format:"- %s" --no-merges)
           fi
+
+          echo "notes<<EOF" >> $GITHUB_OUTPUT
+          if [ -n "$TAG_MSG" ]; then
+            echo "$TAG_MSG" >> $GITHUB_OUTPUT
+            echo "" >> $GITHUB_OUTPUT
+          fi
+          if [ -n "$COMMITS" ]; then
+            echo "$COMMITS" >> $GITHUB_OUTPUT
+          else
+            echo "- Performance and UI improvements" >> $GITHUB_OUTPUT
+          fi
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Create Release and Upload Asset
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
           name: "SQL Studio ${{ github.ref_name }}"
-          body: ${{ steps.tag_info.outputs.notes }}
+          body: ${{ steps.changelog_gen.outputs.notes }}
           draft: false
           prerelease: false
-          generate_release_notes: true
+          generate_release_notes: false
           fail_on_unmatched_files: false
           files: |
             SQLStudio.exe
