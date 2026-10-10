@@ -704,7 +704,7 @@ def save_query(req: SaveQueryRequest):
 # AUTO-UPDATER SYSTEM (GitHub Releases Integration)
 # ===========================================================================
 
-APP_VERSION = "1.0.1"
+APP_VERSION = "1.0.2"
 GITHUB_REPO = "RahulChoudharyGitREPO/sql"
 
 def parse_version(v_str: str):
