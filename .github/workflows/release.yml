@@ -1,4 +1,4 @@
-name: Build and Release SQL Studio
+﻿name: Build and Release SQL Studio
 
 on:
   push:
@@ -44,6 +44,7 @@ jobs:
           draft: false
           prerelease: false
           generate_release_notes: true
+          fail_on_unmatched_files: false
           files: |
             SQLStudio.exe
             dist/SQLStudio.exe
