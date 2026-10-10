@@ -25,14 +25,7 @@ document.addEventListener("DOMContentLoaded", () => {
     type: 'query',
     title: 'Query 1',
     sql: `-- Write your SQL query here (Press Ctrl + Enter to run)
-SELECT 
-    store,
-    sale_date,
-    revenue,
-    SUM(revenue) OVER (PARTITION BY store ORDER BY sale_date) AS running_total,
-    ROUND(AVG(revenue) OVER (PARTITION BY store ORDER BY sale_date ROWS BETWEEN 2 PRECEDING AND CURRENT ROW), 0) AS moving_avg
-FROM store_daily_sales
-ORDER BY store, sale_date;`
+SELECT sqlite_version() AS sqlite_version, CURRENT_TIMESTAMP AS current_time;`
   });
 
   // Check for updates against GitHub Releases
@@ -811,44 +804,148 @@ function exportTabResult(tabId, format) {
   const query = tab.cmEditor.getSelection() || tab.cmEditor.getValue();
   if (!query.trim()) return alert("No SQL query to export");
 
+  // Close dropdown if open
+  document.getElementById(`export-dropdown-${tabId}`)?.classList.remove("open");
   triggerExportDownload({ query, format });
 }
 
 function exportFullTable(tableName, format) {
+  document.querySelectorAll(".dropdown").forEach(d => d.classList.remove("open"));
   triggerExportDownload({ table: tableName, format });
 }
 
-function triggerExportDownload({ table, query, format }) {
-  const form = document.createElement("form");
-  form.method = "POST";
-  form.action = "/api/export/data";
-  form.target = "_blank";
+async function triggerExportDownload({ table, query, format }) {
+  try {
+    const res = await fetch("/api/export/data", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ table, query, format })
+    });
 
-  if (table) {
-    const tInput = document.createElement("input");
-    tInput.type = "hidden";
-    tInput.name = "table";
-    tInput.value = table;
-    form.appendChild(tInput);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Export failed" }));
+      throw new Error(err.detail || "Export error");
+    }
+
+    let ext = format === "excel" ? "xlsx" : format === "markdown" ? "md" : format;
+    let filename = `${table || "query_export"}.${ext}`;
+    const disposition = res.headers.get("Content-Disposition");
+    if (disposition && disposition.includes("filename=")) {
+      const match = disposition.match(/filename="?([^"]+)"?/);
+      if (match && match[1]) filename = match[1];
+    }
+
+    const blob = await res.blob();
+    const blobUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = blobUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(blobUrl);
+    }, 150);
+  } catch (err) {
+    alert("Export failed: " + err.message);
+  }
+}
+
+// ===========================================================================
+// INSERT ROW MODAL
+// ===========================================================================
+
+let activeInsertTable = null;
+
+async function openInsertRowModal(tableName) {
+  activeInsertTable = tableName;
+  document.getElementById("insert-row-table-name").textContent = tableName;
+  const container = document.getElementById("insert-row-fields");
+  container.innerHTML = '<div class="loading-spinner"><i class="fa-solid fa-circle-notch fa-spin"></i> Loading schema...</div>';
+  openModal("modal-insert-row");
+
+  try {
+    const res = await fetch("/api/tables");
+    const data = await res.json();
+    const tableInfo = data.tables.find(t => t.name === tableName);
+    if (!tableInfo || !tableInfo.columns) {
+      container.innerHTML = '<div class="error-banner">Could not inspect table columns.</div>';
+      return;
+    }
+
+    let fieldsHtml = "";
+    tableInfo.columns.forEach(col => {
+      const isAuto = col.pk && col.type.toUpperCase().includes("INT");
+      fieldsHtml += `
+        <div class="form-group" style="margin-bottom: 12px;">
+          <label style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 4px;">
+            <span><strong>${escapeHtml(col.name)}</strong> <span style="color: #94a3b8; font-size: 0.72rem;">(${escapeHtml(col.type)})</span></span>
+            ${col.pk ? '<span style="color: #fbbf24; font-size: 0.72rem;"><i class="fa-solid fa-key"></i> PRIMARY KEY</span>' : ''}
+          </label>
+          <input type="text" id="insert-field-${escapeHtml(col.name)}" 
+                 placeholder="${isAuto ? 'Auto-generated (Leave blank)' : 'Enter value (Leave blank for NULL)'}" 
+                 class="form-input" 
+                 data-col-name="${escapeHtml(col.name)}">
+        </div>
+      `;
+    });
+
+    container.innerHTML = fieldsHtml;
+    document.getElementById("btn-confirm-insert-row").onclick = executeInsertRow;
+  } catch (err) {
+    container.innerHTML = `<div class="error-banner">Error loading columns: ${err.message}</div>`;
+  }
+}
+
+async function executeInsertRow() {
+  if (!activeInsertTable) return;
+  const inputs = document.querySelectorAll("#insert-row-fields input[data-col-name]");
+  const rowData = {};
+
+  inputs.forEach(input => {
+    const col = input.dataset.colName;
+    const val = input.value.trim();
+    if (val !== "") {
+      rowData[col] = val;
+    }
+  });
+
+  if (Object.keys(rowData).length === 0) {
+    alert("Please enter at least one column value");
+    return;
   }
 
-  if (query) {
-    const qInput = document.createElement("input");
-    qInput.type = "hidden";
-    qInput.name = "query";
-    qInput.value = query;
-    form.appendChild(qInput);
+  const btn = document.getElementById("btn-confirm-insert-row");
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Inserting...';
+
+  try {
+    const res = await fetch("/api/table/row/insert", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        table: activeInsertTable,
+        data: rowData
+      })
+    });
+
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.detail || "Insert failed");
+
+    closeModal("modal-insert-row");
+    // Refresh table viewer if currently open
+    tabs.forEach(t => {
+      if (t.type === 'table' && t.tableName === activeInsertTable) {
+        loadTableDataForTab(t.id, activeInsertTable);
+      }
+    });
+    loadTables();
+  } catch (err) {
+    alert("Insert Error: " + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fa-solid fa-plus"></i> Insert Row';
   }
-
-  const fInput = document.createElement("input");
-  fInput.type = "hidden";
-  fInput.name = "format";
-  fInput.value = format;
-  form.appendChild(fInput);
-
-  document.body.appendChild(form);
-  form.submit();
-  form.remove();
 }
 
 // ===========================================================================

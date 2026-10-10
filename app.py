@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Optional, List, Dict, Any
 
 import pandas as pd
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query, Response
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query, Response, Request
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -69,106 +69,13 @@ def get_connection(db_path: Optional[str] = None) -> sqlite3.Connection:
     return conn
 
 def init_sample_data():
-    """Seed sample tables for instant testing (E-Commerce & Store Revenue)."""
+    """Optional helper to seed sample tables if manually requested."""
     conn = get_connection()
     cursor = conn.cursor()
-    
-    # 1. Store Daily Sales
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS store_daily_sales (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        store TEXT NOT NULL,
-        sale_date DATE NOT NULL,
-        revenue REAL NOT NULL,
-        orders_count INTEGER DEFAULT 0
-    );
-    """)
-    cursor.execute("SELECT COUNT(*) FROM store_daily_sales;")
-    if cursor.fetchone()[0] == 0:
-        sample_sales = [
-            ("Koramangala", "2026-09-01", 3200, 45),
-            ("Koramangala", "2026-09-02", 2800, 39),
-            ("Koramangala", "2026-09-03", 4100, 58),
-            ("Koramangala", "2026-09-04", 3900, 52),
-            ("Koramangala", "2026-09-05", 5200, 71),
-            ("Indiranagar", "2026-09-01", 2900, 41),
-            ("Indiranagar", "2026-09-02", 3100, 44),
-            ("Indiranagar", "2026-09-03", 3400, 48),
-            ("Indiranagar", "2026-09-04", 4300, 60),
-            ("Indiranagar", "2026-09-05", 4800, 65),
-            ("Whitefield", "2026-09-01", 1800, 25),
-            ("Whitefield", "2026-09-02", 2100, 30),
-            ("Whitefield", "2026-09-03", 2600, 36),
-            ("Whitefield", "2026-09-04", 3100, 42),
-            ("Whitefield", "2026-09-05", 3500, 49),
-        ]
-        cursor.executemany("INSERT INTO store_daily_sales (store, sale_date, revenue, orders_count) VALUES (?, ?, ?, ?);", sample_sales)
-
-    # 2. Payment Gateway & Bank Settlements (Reconciliation Problem)
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS gateway_txns (
-        order_ref TEXT PRIMARY KEY,
-        customer_name TEXT,
-        amount REAL,
-        status TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-    """)
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS bank_settlements (
-        settlement_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        order_ref TEXT,
-        amount REAL,
-        bank_ref TEXT,
-        settled_date DATE
-    );
-    """)
-    cursor.execute("SELECT COUNT(*) FROM gateway_txns;")
-    if cursor.fetchone()[0] == 0:
-        cursor.executemany("INSERT INTO gateway_txns (order_ref, customer_name, amount, status) VALUES (?, ?, ?, ?);", [
-            ("ORD-501", "Aarav Sharma", 4999.0, "Success"),
-            ("ORD-502", "Priya Patel", 2999.0, "Success"),
-            ("ORD-503", "Rohan Verma", 1250.0, "Failed"),
-            ("ORD-504", "Sneha Iyer", 1500.0, "Success"),
-            ("ORD-505", "Vikram Malhotra", 8990.0, "Success"),
-        ])
-        cursor.executemany("INSERT INTO bank_settlements (order_ref, amount, bank_ref, settled_date) VALUES (?, ?, ?, ?);", [
-            ("ORD-501", 4999.0, "HDFC-TXN-9811", "2026-09-02"),
-            ("ORD-502", 2899.0, "ICICI-TXN-4421", "2026-09-02"), # amount mismatch
-            ("ORD-505", 8990.0, "HDFC-TXN-9812", "2026-09-03"),
-            ("ORD-506", 750.0, "SBI-TXN-1109", "2026-09-04"),    # missing in gateway
-        ])
-
-    # 3. User Logins (Streaks & Retention)
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS user_logins (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER,
-        login_date DATE,
-        ip_address TEXT,
-        device TEXT
-    );
-    """)
-    cursor.execute("SELECT COUNT(*) FROM user_logins;")
-    if cursor.fetchone()[0] == 0:
-        cursor.executemany("INSERT INTO user_logins (user_id, login_date, ip_address, device) VALUES (?, ?, ?, ?);", [
-            (101, "2026-03-01", "192.168.1.1", "Mobile"),
-            (101, "2026-03-02", "192.168.1.1", "Desktop"),
-            (101, "2026-03-03", "192.168.1.1", "Mobile"),
-            (101, "2026-03-05", "192.168.1.1", "Desktop"),
-            (102, "2026-03-01", "10.0.0.5", "Desktop"),
-            (102, "2026-03-03", "10.0.0.5", "Mobile"),
-            (103, "2026-03-10", "172.16.0.2", "Mobile"),
-            (103, "2026-03-11", "172.16.0.2", "Mobile"),
-            (103, "2026-03-12", "172.16.0.2", "Desktop"),
-            (103, "2026-03-13", "172.16.0.2", "Mobile"),
-            (103, "2026-03-15", "172.16.0.2", "Desktop"),
-        ])
-    
     conn.commit()
     conn.close()
 
-init_sample_data()
+# Note: We do NOT auto-seed sample tables so dropped tables remain dropped permanently.
 
 # ===========================================================================
 # PYDANTIC SCHEMAS
@@ -540,19 +447,44 @@ async def import_file(
 # UNLIMITED 100% FREE EXPORT (CSV, EXCEL, JSON, SQL, MARKDOWN)
 # ===========================================================================
 
-@app.post("/api/export/data")
-def export_data(
-    table: Optional[str] = Form(default=None),
-    query: Optional[str] = Form(default=None),
-    format: str = Form(default="csv") # 'csv', 'excel', 'json', 'sql', 'markdown'
+@app.api_route("/api/export/data", methods=["GET", "POST"])
+async def export_data(
+    request: Request,
+    table: Optional[str] = None,
+    query: Optional[str] = None,
+    format: Optional[str] = "csv"
 ):
     """Free unlimited export of any table or query result to CSV, Excel, JSON, SQL, or Markdown."""
     conn = get_connection()
     
     try:
-        t_clean = table if isinstance(table, str) and table.strip() else None
-        q_clean = query if isinstance(query, str) and query.strip() else None
-        fmt_clean = format if isinstance(format, str) else "csv"
+        # Check if parameters were sent in JSON body or form
+        target_table = table
+        target_query = query
+        target_format = format or "csv"
+
+        if request.method == "POST":
+            content_type = request.headers.get("content-type", "")
+            if "application/json" in content_type:
+                try:
+                    body = await request.json()
+                    target_table = body.get("table", target_table)
+                    target_query = body.get("query", target_query)
+                    target_format = body.get("format", target_format)
+                except Exception:
+                    pass
+            elif "form" in content_type:
+                try:
+                    form_data = await request.form()
+                    target_table = form_data.get("table", target_table)
+                    target_query = form_data.get("query", target_query)
+                    target_format = form_data.get("format", target_format)
+                except Exception:
+                    pass
+
+        t_clean = target_table.strip() if isinstance(target_table, str) and target_table.strip() else None
+        q_clean = target_query.strip() if isinstance(target_query, str) and target_query.strip() else None
+        fmt_clean = str(target_format).lower().strip()
         
         sql = q_clean if q_clean else f'SELECT * FROM "{t_clean}";'
         df = pd.read_sql_query(sql, conn)
@@ -565,7 +497,7 @@ def export_data(
             response.headers["Content-Disposition"] = f'attachment; filename="{base_name}.csv"'
             return response
             
-        elif format == "excel":
+        elif fmt_clean in ["excel", "xlsx"]:
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine="openpyxl") as writer:
                 df.to_excel(writer, sheet_name=base_name[:30], index=False)
@@ -574,19 +506,19 @@ def export_data(
             response.headers["Content-Disposition"] = f'attachment; filename="{base_name}.xlsx"'
             return response
             
-        elif format == "json":
+        elif fmt_clean == "json":
             json_str = df.to_json(orient="records", indent=2)
             response = Response(content=json_str, media_type="application/json")
             response.headers["Content-Disposition"] = f'attachment; filename="{base_name}.json"'
             return response
             
-        elif format == "markdown":
+        elif fmt_clean in ["markdown", "md"]:
             md_str = df.to_markdown(index=False)
             response = Response(content=md_str, media_type="text/markdown")
             response.headers["Content-Disposition"] = f'attachment; filename="{base_name}.md"'
             return response
             
-        elif format == "sql":
+        elif fmt_clean == "sql":
             # Generate INSERT statements
             lines = [f"-- Export of {base_name} ({len(df)} rows)", ""]
             target_tbl = base_name or "exported_table"
