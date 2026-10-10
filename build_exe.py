@@ -73,6 +73,10 @@ def build():
     if res.returncode == 0:
         dist_exe = BASE_DIR / "dist" / "SQLStudio.exe"
         if dist_exe.exists():
+            # Kill running instances before copying
+            subprocess.run(["taskkill", "/F", "/IM", "SQLStudio.exe"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            import time
+            time.sleep(0.5)
             # Copy to sql_studio root for convenient access
             dest_exe = BASE_DIR / "SQLStudio.exe"
             shutil.copy2(dist_exe, dest_exe)
