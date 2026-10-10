@@ -630,6 +630,108 @@ function filterGridRows(tabId, query) {
 // TABLE VIEWER DATA & INLINE CELL EDITING
 // ===========================================================================
 
+async function loadActiveTableData(tableName, search = "") {
+  const gridEl = document.getElementById("table-viewer-grid");
+  const countEl = document.getElementById("tv-record-count");
+  if (!gridEl) return;
+
+  gridEl.innerHTML = '<div class="loading-spinner"><i class="fa-solid fa-circle-notch fa-spin"></i> Loading table records...</div>';
+
+  try {
+    const url = `/api/table/${encodeURIComponent(tableName)}/data?limit=200&search=${encodeURIComponent(search)}`;
+    const res = await fetch(url);
+    const data = await res.json();
+
+    if (countEl) countEl.textContent = `(${data.total_rows} total records)`;
+
+    let html = '<table class="data-table"><thead><tr>';
+    html += '<th style="width: 40px; text-align: center;">#</th>';
+    data.columns.forEach(col => {
+      const isPk = col === data.pk_col;
+      html += `<th>${isPk ? '<i class="fa-solid fa-key" style="color: #fbbf24; font-size: 0.7rem;"></i> ' : ''}${escapeHtml(col)}</th>`;
+    });
+    html += '<th style="width: 60px; text-align: center;">Actions</th></tr></thead><tbody>';
+
+    if (!data.rows || data.rows.length === 0) {
+      html += `<tr><td colspan="${data.columns.length + 2}" style="text-align: center; padding: 24px; color: #64748b;">No records found in table '${escapeHtml(tableName)}'.</td></tr>`;
+    } else {
+      data.rows.forEach((row, rIdx) => {
+        const pkVal = row[data.columns.indexOf(data.pk_col)];
+        html += `<tr><td style="text-align: center; color: #64748b;">${rIdx + 1}</td>`;
+        
+        data.columns.forEach((col, cIdx) => {
+          const cell = row[cIdx];
+          const isNull = cell === null || cell === undefined;
+          html += `
+            <td class="${isNull ? 'null-val' : ''}" 
+                ondblclick="makeCellEditable(this, '${escapeQuotes(tableName)}', '${escapeQuotes(data.pk_col)}', '${escapeQuotes(pkVal)}', '${escapeQuotes(col)}')"
+                title="Double click to edit">
+              ${isNull ? 'NULL' : escapeHtml(String(cell))}
+            </td>
+          `;
+        });
+
+        html += `
+          <td style="text-align: center;">
+            <button class="btn-icon" style="color: #ef4444;" onclick="deleteActiveTableRow('${escapeQuotes(tableName)}', '${escapeQuotes(data.pk_col)}', '${escapeQuotes(pkVal)}')">
+              <i class="fa-solid fa-trash-can"></i>
+            </button>
+          </td>
+        </tr>`;
+      });
+    }
+
+    html += '</tbody></table>';
+    gridEl.innerHTML = html;
+  } catch (err) {
+    gridEl.innerHTML = `<div class="error-banner">Error loading table: ${escapeHtml(err.message)}</div>`;
+  }
+}
+
+function refreshActiveTableData() {
+  if (activeTableName) {
+    const searchVal = document.getElementById("tv-search-input")?.value || "";
+    loadActiveTableData(activeTableName, searchVal);
+  }
+}
+
+function searchActiveTableRows(query) {
+  if (activeTableName) {
+    loadActiveTableData(activeTableName, query);
+  }
+}
+
+function openInsertRowModalForActiveTable() {
+  if (activeTableName) {
+    openInsertRowModal(activeTableName);
+  }
+}
+
+function exportActiveTable(format) {
+  if (activeTableName) {
+    exportFullTable(activeTableName, format);
+  }
+}
+
+async function deleteActiveTableRow(table, pkCol, pkVal) {
+  if (!confirm(`Are you sure you want to delete this row where ${pkCol} = ${pkVal}?`)) return;
+  try {
+    await fetch("/api/table/row/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        table,
+        primary_key_col: pkCol,
+        primary_key_val: pkVal
+      })
+    });
+    refreshActiveTableData();
+    loadTables();
+  } catch (err) {
+    alert("Delete failed: " + err.message);
+  }
+}
+
 async function loadTableDataForTab(tabId, tableName, search = "") {
   const gridEl = document.getElementById(`grid-${tabId}`);
   const statsEl = document.getElementById(`stats-${tabId}`);
