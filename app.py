@@ -42,7 +42,7 @@ def df_to_markdown_table(df: pd.DataFrame) -> str:
     return "\n".join([header_line, sep_line] + body_lines) + "\n"
 
 """
-SQL Studio - Beekeeper Studio Clone
+SQL Studio - Database Client
 Fast, beautiful, lightweight SQL client with unlimited free import/export (CSV, Excel, JSON, SQL).
 """
 
@@ -79,7 +79,7 @@ else:
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 STATIC_DIR.mkdir(parents=True, exist_ok=True)
 
-app = FastAPI(title="SQL Studio - Beekeeper Clone", version="1.0.0")
+app = FastAPI(title="SQL Studio - Database Client", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,

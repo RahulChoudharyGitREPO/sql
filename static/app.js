@@ -1,5 +1,5 @@
 /**
- * SQL Studio — Beekeeper Studio Clone Frontend Engine
+ * SQL Studio — Pro Database Client Frontend Engine
  * Handles Multi-tab CodeMirror, Query Execution, Grid Rendering, Free Import/Export, and Table Editing.
  */
 

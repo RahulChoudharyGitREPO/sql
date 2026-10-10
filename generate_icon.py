@@ -1,5 +1,5 @@
 """
-Generates a sleek, professional Beekeeper Studio icon (.ico and .png)
+Generates a sleek, professional SQL Studio icon (.ico and .png)
 """
 
 import os

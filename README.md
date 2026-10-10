@@ -1,4 +1,4 @@
-# 🐝 SQL Studio — Beekeeper Studio Free Clone
+# 🐝 SQL Studio — Pro Database Client
 
 A modern, high-performance, dark-themed SQL editor and database manager with **100% Free & Unlimited Import/Export** capabilities.
 
@@ -6,8 +6,8 @@ A modern, high-performance, dark-themed SQL editor and database manager with **1
 
 ## ⚡ Key Features
 
-1. **Exact Beekeeper Studio Look & Feel:**
-   - Dark luxury Dracula/Beekeeper theme (`#13141f` palette with amber and gold accents).
+1. **Modern Dark Theme Look & Feel:**
+   - Dark luxury Dracula/Dark theme (`#13141f` palette with amber and gold accents).
    - Sidebar with collapsible Tables tree, row count badges, Saved Queries, and Execution History.
    - Multi-tab SQL query editor and Table Data Viewer.
 
