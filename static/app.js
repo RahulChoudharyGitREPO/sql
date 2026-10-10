@@ -1131,7 +1131,6 @@ async function checkForUpdates(manual = false) {
       if (manual) alert("Could not check for updates right now. Please check your internet connection.");
       return false;
     }
-  }
 }
 
 function openUpdateModal() {
