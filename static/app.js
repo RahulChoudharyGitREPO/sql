@@ -37,6 +37,9 @@ ORDER BY store, sale_date;`
 
   // Check for updates against GitHub Releases
   setTimeout(checkForUpdates, 1500);
+
+  // Show "Made with ❤️ by Rahul" card
+  setTimeout(showMadeByCard, 800);
 });
 
 function initUIEvents() {
@@ -1095,4 +1098,23 @@ async function performAppUpdate() {
     if (progressContainer) progressContainer.style.display = "none";
   }
 }
+
+// ===========================================================================
+// MADE BY RAHUL CARD POPUP
+// ===========================================================================
+
+function showMadeByCard() {
+  const card = document.getElementById("made-by-card");
+  if (card) {
+    card.classList.add("show");
+  }
+}
+
+function dismissMadeByCard() {
+  const card = document.getElementById("made-by-card");
+  if (card) {
+    card.classList.remove("show");
+  }
+}
+
 
