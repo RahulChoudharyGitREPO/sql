@@ -30,11 +30,13 @@ document.addEventListener("DOMContentLoaded", () => {
 SELECT sqlite_version() AS sqlite_version, CURRENT_TIMESTAMP AS current_time;`
   });
 
-  // Check for updates against GitHub Releases
-  setTimeout(checkForUpdates, 1500);
-
-  // Show "Made with ❤️ by Rahul" card
-  setTimeout(showMadeByCard, 800);
+      // Check for updates immediately on launch
+    checkForUpdates().then(hasUpdate => {
+      if (!hasUpdate) {
+        // Only show welcome card if no update is blocking
+        setTimeout(showMadeByCard, 300);
+      }
+    });
 });
 
 function initUIEvents() {
@@ -1105,26 +1107,30 @@ function escapeQuotes(str) {
 let cachedUpdateData = null;
 
 async function checkForUpdates(manual = false) {
-  try {
-    const res = await fetch("/api/check_update");
-    const data = await res.json();
-    
-    if (data.has_update) {
-      cachedUpdateData = data;
-      const badge = document.getElementById("update-badge");
-      if (badge) {
-        badge.style.display = "inline-flex";
-        badge.innerHTML = `<i class="fa-solid fa-sparkles"></i> Update to ${data.latest_version}!`;
-      }
+    try {
+      const res = await fetch("/api/check_update");
+      const data = await res.json();
       
-      // Auto-popup update modal when new release is detected
-      openUpdateModal();
-    } else if (manual) {
-      alert(`SQL Studio is up to date! (Version: ${data.current_version})`);
+      if (data.has_update) {
+        cachedUpdateData = data;
+        const badge = document.getElementById("update-badge");
+        if (badge) {
+          badge.style.display = "inline-flex";
+          badge.innerHTML = `<i class="fa-solid fa-sparkles"></i> Update to ${data.latest_version}!`;
+        }
+        
+        // Auto-popup update modal immediately
+        openUpdateModal();
+        return true;
+      } else {
+        if (manual) alert(`SQL Studio is up to date! (Version: ${data.current_version})`);
+        return false;
+      }
+    } catch (err) {
+      console.warn("Update check skipped/offline:", err);
+      if (manual) alert("Could not check for updates right now. Please check your internet connection.");
+      return false;
     }
-  } catch (err) {
-    console.warn("Update check skipped/offline:", err);
-    if (manual) alert("Could not check for updates right now. Please check your internet connection.");
   }
 }
 
