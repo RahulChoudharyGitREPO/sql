@@ -1,4 +1,4 @@
-# 🐝 SQL Studio — Beekeeper Studio Free Edition
+# 🐝 SQL Studio — 
 
 > Fast, beautiful, lightweight SQL client with **100% Free & Unlimited Import/Export** (CSV, Excel, JSON, SQL Dumps) and built-in Auto-Updates.
 
