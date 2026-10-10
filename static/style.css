@@ -1257,3 +1257,181 @@ body {
 }
 
 
+
+.table-tree-item.active {
+  background: rgba(245, 158, 11, 0.16);
+  color: var(--accent-gold);
+  border-left: 3px solid var(--accent-amber);
+  padding-left: 9px;
+  font-weight: 600;
+}
+
+
+/* ==========================================================================
+   CENTER "MADE WITH ❤️ BY RAHUL" RECTANGULAR CARD MODAL
+   ========================================================================== */
+
+.made-by-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(10, 11, 18, 0.65);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.made-by-overlay.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.made-by-card-center {
+  position: relative;
+  width: 440px;
+  max-width: 90vw;
+  background: linear-gradient(145deg, #1e2030, #141522);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  border-radius: 16px;
+  padding: 28px 28px 24px;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.75), 0 0 35px rgba(251, 191, 36, 0.18);
+  transform: scale(0.92) translateY(10px);
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.made-by-overlay.show .made-by-card-center {
+  transform: scale(1) translateY(0);
+}
+
+.made-by-close-btn {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-muted);
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.made-by-close-btn:hover {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #ef4444;
+}
+
+.made-by-card-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.made-by-icon-badge {
+  width: 52px;
+  height: 52px;
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #0f172a;
+  font-size: 1.5rem;
+  box-shadow: 0 8px 24px rgba(245, 158, 11, 0.4);
+}
+
+.made-by-pill {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #94a3b8;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 3px 10px;
+  border-radius: 20px;
+}
+
+.made-by-pill span {
+  color: #fbbf24;
+  font-weight: 800;
+}
+
+.made-by-main-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0 0 8px;
+  letter-spacing: -0.01em;
+}
+
+.author-highlight {
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-weight: 800;
+}
+
+.heart-beat {
+  display: inline-block;
+  animation: heartPulseAnim 1.4s ease-in-out infinite;
+  transform-origin: center;
+}
+
+@keyframes heartPulseAnim {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.3); }
+}
+
+.made-by-subtext {
+  font-size: 0.82rem;
+  color: #94a3b8;
+  line-height: 1.45;
+  margin: 0 0 20px;
+  padding: 0 10px;
+}
+
+.made-by-card-footer {
+  width: 100%;
+}
+
+.btn-start-querying {
+  width: 100%;
+  height: 40px;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  border: none;
+  border-radius: 9px;
+  color: #0f172a;
+  font-size: 0.88rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(245, 158, 11, 0.35);
+  transition: all 0.15s ease;
+}
+
+.btn-start-querying:hover {
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  box-shadow: 0 6px 20px rgba(245, 158, 11, 0.5);
+  transform: translateY(-1px);
+}

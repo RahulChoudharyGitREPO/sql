@@ -5,6 +5,8 @@
 
 let tabs = [];
 let activeTabId = null;
+let activeTableName = null;
+let activeView = 'query'; // 'query' | 'table'
 let tabCounter = 1;
 let currentTables = [];
 let selectedImportFile = null;
@@ -252,7 +254,7 @@ async function loadTables() {
       `;
       
       item.addEventListener("click", () => {
-        openTableViewerTab(t.name);
+        showTableViewer(t.name);
       });
       
       listEl.appendChild(item);
@@ -268,14 +270,12 @@ async function loadTables() {
 
 function createTab(options = {}) {
   const id = 'tab-' + Math.random().toString(36).substr(2, 9);
-  const type = options.type || 'query'; // 'query' | 'table'
-  const title = options.title || (type === 'query' ? `Query ${tabCounter}` : options.tableName);
+  const title = options.title || `Query ${tabCounter}`;
   
   const tabData = {
     id,
-    type,
+    type: 'query',
     title,
-    tableName: options.tableName || null,
     cmEditor: null,
     lastResult: null
   };
@@ -290,7 +290,7 @@ function createTab(options = {}) {
   tabBtn.className = "tab-btn";
   tabBtn.id = `btn-${id}`;
   tabBtn.innerHTML = `
-    <i class="${type === 'query' ? 'fa-solid fa-terminal tab-icon' : 'fa-solid fa-table tab-icon'}"></i>
+    <i class="fa-solid fa-terminal tab-icon"></i>
     <span>${title}</span>
     <button class="tab-close" title="Close Tab">&times;</button>
   `;
@@ -314,133 +314,92 @@ function createTab(options = {}) {
   pane.className = "tab-pane";
   pane.id = `pane-${id}`;
 
-  if (type === 'query') {
-    pane.innerHTML = `
-      <div class="query-toolbar">
-        <div class="query-toolbar-left">
-          <button class="btn-run" onclick="runQueryForTab('${id}')">
-            <i class="fa-solid fa-play"></i> Run (Ctrl+Enter)
+  pane.innerHTML = `
+    <div class="query-toolbar">
+      <div class="query-toolbar-left">
+        <button class="btn-run" onclick="runQueryForTab('${id}')">
+          <i class="fa-solid fa-play"></i> Run (Ctrl+Enter)
+        </button>
+        <button class="btn-tool" onclick="formatSQLForTab('${id}')">
+          <i class="fa-solid fa-wand-magic-sparkles"></i> Format
+        </button>
+        <button class="btn-tool" onclick="openSaveQueryModal('${id}')">
+          <i class="fa-solid fa-bookmark"></i> Save
+        </button>
+        <button class="btn-tool" onclick="clearEditorForTab('${id}')">
+          <i class="fa-solid fa-eraser"></i> Clear
+        </button>
+      </div>
+      <div class="query-toolbar-right">
+        <div class="dropdown" id="export-dropdown-${id}">
+          <button class="btn-tool" onclick="toggleDropdown('export-dropdown-${id}')">
+            <i class="fa-solid fa-file-export"></i> Export Result <i class="fa-solid fa-chevron-down" style="font-size: 0.7rem;"></i>
           </button>
-          <button class="btn-tool" onclick="formatSQLForTab('${id}')">
-            <i class="fa-solid fa-wand-magic-sparkles"></i> Format
-          </button>
-          <button class="btn-tool" onclick="openSaveQueryModal('${id}')">
-            <i class="fa-solid fa-bookmark"></i> Save
-          </button>
-          <button class="btn-tool" onclick="clearEditorForTab('${id}')">
-            <i class="fa-solid fa-eraser"></i> Clear
-          </button>
-        </div>
-        <div class="query-toolbar-right">
-          <div class="dropdown" id="export-dropdown-${id}">
-            <button class="btn-tool" onclick="toggleDropdown('export-dropdown-${id}')">
-              <i class="fa-solid fa-file-export"></i> Export Result <i class="fa-solid fa-chevron-down" style="font-size: 0.7rem;"></i>
-            </button>
-            <div class="dropdown-menu">
-              <div class="dropdown-item" onclick="exportTabResult('${id}', 'csv')"><i class="fa-solid fa-file-csv"></i> Export as CSV</div>
-              <div class="dropdown-item" onclick="exportTabResult('${id}', 'excel')"><i class="fa-solid fa-file-excel"></i> Export as Excel (.xlsx)</div>
-              <div class="dropdown-item" onclick="exportTabResult('${id}', 'json')"><i class="fa-solid fa-file-code"></i> Export as JSON</div>
-              <div class="dropdown-item" onclick="exportTabResult('${id}', 'sql')"><i class="fa-solid fa-database"></i> Export as SQL Inserts</div>
-              <div class="dropdown-item" onclick="exportTabResult('${id}', 'markdown')"><i class="fa-solid fa-table"></i> Export as Markdown</div>
-            </div>
+          <div class="dropdown-menu">
+            <div class="dropdown-item" onclick="exportTabResult('${id}', 'csv')"><i class="fa-solid fa-file-csv"></i> Export as CSV</div>
+            <div class="dropdown-item" onclick="exportTabResult('${id}', 'excel')"><i class="fa-solid fa-file-excel"></i> Export as Excel (.xlsx)</div>
+            <div class="dropdown-item" onclick="exportTabResult('${id}', 'json')"><i class="fa-solid fa-file-code"></i> Export as JSON</div>
+            <div class="dropdown-item" onclick="exportTabResult('${id}', 'sql')"><i class="fa-solid fa-database"></i> Export as SQL Inserts</div>
+            <div class="dropdown-item" onclick="exportTabResult('${id}', 'markdown')"><i class="fa-solid fa-table"></i> Export as Markdown</div>
           </div>
         </div>
       </div>
-      <div class="editor-container" id="editor-${id}"></div>
-      <div class="results-container">
-        <div class="results-header">
-          <div class="results-stats" id="stats-${id}">
-            <span><i class="fa-solid fa-circle-info"></i> Ready to execute query</span>
-          </div>
-          <div class="results-filter">
-            <input type="text" placeholder="Filter result rows..." oninput="filterGridRows('${id}', this.value)">
-          </div>
+    </div>
+    <div class="editor-container" id="editor-${id}"></div>
+    <div class="results-container">
+      <div class="results-header">
+        <div class="results-stats" id="stats-${id}">
+          <span><i class="fa-solid fa-circle-info"></i> Ready to execute query</span>
         </div>
-        <div class="results-grid-wrapper" id="grid-${id}">
-          <div class="empty-state">
-            <i class="fa-solid fa-bolt"></i>
-            <span>Press <strong>Run</strong> or <strong>Ctrl+Enter</strong> to execute SQL</span>
-          </div>
+        <div class="results-filter">
+          <input type="text" placeholder="Filter result rows..." oninput="filterGridRows('${id}', this.value)">
         </div>
       </div>
-    `;
-  } else {
-    // Table Data Viewer Pane
-    pane.innerHTML = `
-      <div class="query-toolbar">
-        <div class="query-toolbar-left">
-          <button class="btn-tool" onclick="refreshTableData('${id}', '${options.tableName}')">
-            <i class="fa-solid fa-rotate"></i> Refresh
-          </button>
-          <button class="btn-tool" onclick="openInsertRowModal('${options.tableName}')">
-            <i class="fa-solid fa-plus"></i> Add Row
-          </button>
-        </div>
-        <div class="query-toolbar-right">
-          <div class="dropdown" id="export-table-dropdown-${id}">
-            <button class="btn-tool" onclick="toggleDropdown('export-table-dropdown-${id}')">
-              <i class="fa-solid fa-file-export"></i> Export Table <i class="fa-solid fa-chevron-down" style="font-size: 0.7rem;"></i>
-            </button>
-            <div class="dropdown-menu">
-              <div class="dropdown-item" onclick="exportFullTable('${options.tableName}', 'csv')"><i class="fa-solid fa-file-csv"></i> Export as CSV</div>
-              <div class="dropdown-item" onclick="exportFullTable('${options.tableName}', 'excel')"><i class="fa-solid fa-file-excel"></i> Export as Excel (.xlsx)</div>
-              <div class="dropdown-item" onclick="exportFullTable('${options.tableName}', 'json')"><i class="fa-solid fa-file-code"></i> Export as JSON</div>
-              <div class="dropdown-item" onclick="exportFullTable('${options.tableName}', 'sql')"><i class="fa-solid fa-database"></i> Export as SQL Inserts</div>
-              <div class="dropdown-item" onclick="exportFullTable('${options.tableName}', 'markdown')"><i class="fa-solid fa-table"></i> Export as Markdown</div>
-            </div>
-          </div>
+      <div class="results-grid-wrapper" id="grid-${id}">
+        <div class="empty-state">
+          <i class="fa-solid fa-bolt"></i>
+          <span>Press <strong>Run</strong> or <strong>Ctrl+Enter</strong> to execute SQL</span>
         </div>
       </div>
-      <div class="results-container" style="height: 100%;">
-        <div class="results-header">
-          <div class="results-stats" id="stats-${id}">
-            <span>Table: <strong>${options.tableName}</strong></span>
-          </div>
-          <div class="results-filter">
-            <input type="text" placeholder="Search in table..." oninput="searchTableRows('${id}', '${options.tableName}', this.value)">
-          </div>
-        </div>
-        <div class="results-grid-wrapper" id="grid-${id}">
-          <div class="loading-spinner"><i class="fa-solid fa-circle-notch fa-spin"></i> Loading table records...</div>
-        </div>
-      </div>
-    `;
-  }
+    </div>
+  `;
 
   contentArea.appendChild(pane);
 
-  // Initialize CodeMirror if query tab
-  if (type === 'query') {
-    const editorEl = pane.querySelector(`#editor-${id}`);
-    const cm = CodeMirror(editorEl, {
-      value: options.sql || "SELECT * FROM store_daily_sales LIMIT 50;",
-      mode: "text/x-sql",
-      theme: "dracula",
-      lineNumbers: true,
-      matchBrackets: true,
-      autoCloseBrackets: true,
-      extraKeys: {
-        "Ctrl-Space": "autocomplete",
-        "Ctrl-Enter": () => runQueryForTab(id),
-        "Cmd-Enter": () => runQueryForTab(id)
-      }
-    });
-    tabData.cmEditor = cm;
-  }
+  const editorEl = pane.querySelector(`#editor-${id}`);
+  const cm = CodeMirror(editorEl, {
+    value: options.sql || "-- Write your SQL query here (Press Ctrl + Enter to run)\nSELECT sqlite_version() AS sqlite_version, CURRENT_TIMESTAMP AS current_time;",
+    mode: "text/x-sql",
+    theme: "dracula",
+    lineNumbers: true,
+    matchBrackets: true,
+    autoCloseBrackets: true,
+    extraKeys: {
+      "Ctrl-Space": "autocomplete",
+      "Ctrl-Enter": () => runQueryForTab(id),
+      "Cmd-Enter": () => runQueryForTab(id)
+    }
+  });
+  tabData.cmEditor = cm;
 
   switchTab(id);
-
-  if (type === 'table') {
-    loadTableDataForTab(id, options.tableName);
-  }
-
   return tabData;
 }
 
 function switchTab(id) {
+  activeView = 'query';
   activeTabId = id;
+  activeTableName = null;
+
+  // Deactivate sidebar table selection
+  document.querySelectorAll(".table-tree-item").forEach(i => i.classList.remove("active"));
+
+  // Deactivate table viewer pane
+  document.getElementById("pane-table-viewer")?.classList.remove("active");
+
+  // Activate selected query tab
   document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
-  document.querySelectorAll(".tab-pane").forEach(p => p.classList.remove("active"));
+  document.querySelectorAll(".tab-pane:not(#pane-table-viewer)").forEach(p => p.classList.remove("active"));
 
   const btn = document.getElementById(`btn-${id}`);
   const pane = document.getElementById(`pane-${id}`);
@@ -451,6 +410,35 @@ function switchTab(id) {
   if (tab && tab.cmEditor) {
     setTimeout(() => tab.cmEditor.refresh(), 10);
   }
+}
+
+function showTableViewer(tableName) {
+  activeView = 'table';
+  activeTableName = tableName;
+
+  // Highlight table in sidebar
+  document.querySelectorAll(".table-tree-item").forEach(item => {
+    if (item.dataset.tableName === tableName) {
+      item.classList.add("active");
+    } else {
+      item.classList.remove("active");
+    }
+  });
+
+  // Deactivate top query tab buttons & query panes
+  document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+  document.querySelectorAll(".tab-pane:not(#pane-table-viewer)").forEach(p => p.classList.remove("active"));
+
+  // Show dedicated table viewer pane
+  const tvPane = document.getElementById("pane-table-viewer");
+  if (tvPane) {
+    tvPane.classList.add("active");
+  }
+
+  document.getElementById("tv-table-name").textContent = tableName;
+  const searchInput = document.getElementById("tv-search-input");
+  if (searchInput) searchInput.value = "";
+  loadActiveTableData(tableName);
 }
 
 function closeTab(id) {
@@ -527,6 +515,10 @@ async function runQueryForTab(tabId) {
     document.getElementById("sb-time-info").innerHTML = `<i class="fa-solid fa-bolt"></i> ${data.execution_time_ms} ms`;
     loadHistory();
     loadTables(); // in case CREATE/DROP/INSERT was run
+    // Auto-refresh table viewer if open
+    if (activeView === 'table' && activeTableName) {
+      loadActiveTableData(activeTableName);
+    }
   } catch (err) {
     gridEl.innerHTML = `<div class="error-banner"><strong>Network Error:</strong>\n${escapeHtml(err.message)}</div>`;
   }
@@ -669,6 +661,7 @@ function searchTableRows(tabId, tableName, query) {
 function makeCellEditable(tdEl, table, pkCol, pkVal, colName) {
   if (tdEl.querySelector("input")) return;
   const currentVal = tdEl.classList.contains("null-val") ? "" : tdEl.textContent.trim();
+  let isSavedOrCancelled = false;
   
   const input = document.createElement("input");
   input.type = "text";
@@ -676,40 +669,61 @@ function makeCellEditable(tdEl, table, pkCol, pkVal, colName) {
   input.className = "form-input";
   input.style.padding = "2px 4px";
   input.style.fontSize = "0.8rem";
+  input.style.width = "100%";
 
   tdEl.textContent = "";
   tdEl.appendChild(input);
   input.focus();
+  input.select();
+
+  const saveCell = async () => {
+    if (isSavedOrCancelled) return;
+    isSavedOrCancelled = true;
+    const newVal = input.value.trim();
+    if (newVal === currentVal) {
+      tdEl.textContent = currentVal === "" ? "NULL" : currentVal;
+      if (currentVal === "") tdEl.classList.add("null-val");
+      return;
+    }
+    try {
+      const res = await fetch("/api/table/cell/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          table,
+          primary_key_col: pkCol,
+          primary_key_val: pkVal,
+          column: colName,
+          new_value: newVal === "" ? null : newVal
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Update failed");
+      tdEl.textContent = newVal === "" ? "NULL" : newVal;
+      if (newVal === "") tdEl.classList.add("null-val"); else tdEl.classList.remove("null-val");
+      showToast("Cell updated", "success");
+    } catch (err) {
+      alert("Failed to update cell: " + err.message);
+      tdEl.textContent = currentVal === "" ? "NULL" : currentVal;
+      if (currentVal === "") tdEl.classList.add("null-val");
+    }
+  };
 
   input.addEventListener("keydown", async (e) => {
     if (e.key === "Enter") {
-      const newVal = input.value;
-      try {
-        await fetch("/api/table/cell/update", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            table,
-            primary_key_col: pkCol,
-            primary_key_val: pkVal,
-            column: colName,
-            new_value: newVal === "" ? null : newVal
-          })
-        });
-        tdEl.textContent = newVal === "" ? "NULL" : newVal;
-        if (newVal === "") tdEl.classList.add("null-val"); else tdEl.classList.remove("null-val");
-      } catch (err) {
-        alert("Failed to update cell: " + err);
-        tdEl.textContent = currentVal;
-      }
-    }
-    if (e.key === "Escape") {
-      tdEl.textContent = currentVal;
+      e.preventDefault();
+      await saveCell();
+    } else if (e.key === "Escape") {
+      isSavedOrCancelled = true;
+      tdEl.textContent = currentVal === "" ? "NULL" : currentVal;
+      if (currentVal === "") tdEl.classList.add("null-val");
     }
   });
 
   input.addEventListener("blur", () => {
-    tdEl.textContent = currentVal;
+    if (!isSavedOrCancelled) {
+      saveCell();
+    }
   });
 }
 
@@ -784,7 +798,7 @@ async function executeImport() {
     alert(`✓ Successfully imported ${data.rows_imported} rows into table '${data.table}'!`);
     closeModal("modal-import");
     loadTables();
-    openTableViewerTab(data.table);
+    showTableViewer(data.table);
   } catch (err) {
     alert("Network error importing file: " + err.message);
   } finally {
@@ -1201,16 +1215,16 @@ async function performAppUpdate() {
 // ===========================================================================
 
 function showMadeByCard() {
-  const card = document.getElementById("made-by-card");
-  if (card) {
-    card.classList.add("show");
+  const overlay = document.getElementById("made-by-overlay");
+  if (overlay) {
+    overlay.classList.add("show");
   }
 }
 
 function dismissMadeByCard() {
-  const card = document.getElementById("made-by-card");
-  if (card) {
-    card.classList.remove("show");
+  const overlay = document.getElementById("made-by-overlay");
+  if (overlay) {
+    overlay.classList.remove("show");
   }
 }
 

@@ -1,49 +1,56 @@
-# 🐝 SQL Studio — 
+# 🐝 SQL Studio — Beekeeper Studio Free Clone
 
-> Fast, beautiful, lightweight SQL client with **100% Free & Unlimited Import/Export** (CSV, Excel, JSON, SQL Dumps) and built-in Auto-Updates.
-
----
-
-## ✨ Features
-
-- 🎨 **Beekeeper Studio Dark Palette**: Dracula syntax highlighting, table tree, schema viewer, and tabbed query workspace.
-- ⚡ **Unlimited Data Import**: Direct import of CSV, Excel (`.xlsx`, `.xls`), JSON, and raw SQL script dumps.
-- 🚀 **Unlimited Data Export**: Direct export of query results and table dumps in CSV, Excel, JSON, SQL `INSERT` statements, and Markdown tables.
-- 🔄 **Over-the-Air (OTA) Auto-Updater**: Checks for updates on startup via GitHub Releases. When an update is published, users get an instant update modal and 1-click upgrade without reinstalling.
-- 💾 **Safe Local Persistence**: Stores databases and query history in `%APPDATA%/SQLStudio/data`.
-- 🪟 **Zero Console / Sub-second Launch**: Single standalone `.exe` compiled with PyInstaller windowed mode.
+A modern, high-performance, dark-themed SQL editor and database manager with **100% Free & Unlimited Import/Export** capabilities.
 
 ---
 
-## 🛠️ How to Run from Source
+## ⚡ Key Features
+
+1. **Exact Beekeeper Studio Look & Feel:**
+   - Dark luxury Dracula/Beekeeper theme (`#13141f` palette with amber and gold accents).
+   - Sidebar with collapsible Tables tree, row count badges, Saved Queries, and Execution History.
+   - Multi-tab SQL query editor and Table Data Viewer.
+
+2. **Monaco-Grade Code Editor:**
+   - Syntax highlighting for all SQL dialects.
+   - Autocomplete keywords, line numbers, and bracket matching.
+   - `Ctrl + Enter` (or `Cmd + Enter`) instant execution.
+   - SQL auto-formatting and beautifier.
+
+3. **100% Free Unlimited Data Import (Zero Paywalls):**
+   - **CSV / TSV**: Drag-and-drop or browse, auto-detects column names & types.
+   - **Excel (`.xlsx`, `.xls`)**: Multi-sheet import support.
+   - **JSON**: Auto-flattens and loads records.
+   - **SQL Script (`.sql`)**: Full multi-statement DDL/DML execution.
+
+4. **100% Free Unlimited Data Export:**
+   - Export any query result or full table to:
+     * 📄 **CSV**
+     * 📊 **Excel (`.xlsx`)**
+     * 📦 **JSON**
+     * 🗄️ **SQL INSERT Statements**
+     * 📋 **Markdown Tables** (instant copy-paste into docs or chat)
+
+5. **Visual Table Data Editor:**
+   - View any table with 1-click.
+   - Double-click any cell for instant inline editing.
+   - `+ Add Row` and `🗑 Delete Row` with instant SQLite persistence.
+   - Filter and search directly inside any table.
+
+6. **Built-in Sample Datasets (Ready to Practice):**
+   - `store_daily_sales` (Store revenue, moving averages, target milestones).
+   - `gateway_txns` & `bank_settlements` (Payment reconciliation).
+   - `user_logins` (User retention & streak tracking).
+
+---
+
+## 🚀 How to Launch
+
+Double-click `start_sql_studio.bat` or run:
 
 ```bash
-# 1. Install dependencies
-pip install -r requirements.txt
-
-# 2. Run application
+cd sql_studio
 python run_studio.py
 ```
 
----
-
-## 📦 How to Build Standalone Windows EXE
-
-```bash
-python build_exe.py
-```
-This produces `SQLStudio.exe` (~52 MB) with custom icons and embedded static assets.
-
----
-
-## 🚀 How to Publish Updates to All Users
-
-1. Make your changes and update `APP_VERSION` in `app.py`.
-2. Commit and tag a release:
-```bash
-git add .
-git commit -m "Add new features"
-git tag v1.0.1
-git push origin main --tags
-```
-3. GitHub Actions will automatically compile `SQLStudio.exe` and publish the release. All running instances will notify users with a 1-click update popup!
+It will automatically launch as a standalone desktop window on `http://localhost:5050`.

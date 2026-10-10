@@ -1,8 +1,3 @@
-"""
-SQL Studio - Beekeeper Studio Clone
-Fast, beautiful, lightweight SQL client with unlimited free import/export (CSV, Excel, JSON, SQL).
-"""
-
 import os
 import sys
 import time
@@ -14,6 +9,44 @@ from pathlib import Path
 from typing import Optional, List, Dict, Any
 
 import pandas as pd
+
+def df_to_markdown_table(df: pd.DataFrame) -> str:
+    """Generate clean GitHub-flavored Markdown table without tabulate dependency."""
+    if df.empty:
+        if len(df.columns) > 0:
+            headers = [str(c) for c in df.columns]
+            header_line = "| " + " | ".join(headers) + " |"
+            sep_line = "| " + " | ".join(["---"] * len(headers)) + " |"
+            return f"{header_line}\n{sep_line}\n"
+        return "*(Empty result set)*\n"
+    
+    headers = [str(c) for c in df.columns]
+    rows_data = []
+    col_widths = [max(3, len(h)) for h in headers]
+    
+    for _, row in df.iterrows():
+        row_str = []
+        for idx, val in enumerate(row.values):
+            cell_str = "NULL" if pd.isna(val) else str(val).replace("\n", " ")
+            col_widths[idx] = max(col_widths[idx], len(cell_str))
+            row_str.append(cell_str)
+        rows_data.append(row_str)
+        
+    header_line = "| " + " | ".join(f"{h:<{col_widths[i]}}" for i, h in enumerate(headers)) + " |"
+    sep_line = "|-" + "-|-".join("-" * col_widths[i] for i in range(len(headers))) + "-|"
+    
+    body_lines = []
+    for row in rows_data:
+        body_lines.append("| " + " | ".join(f"{cell:<{col_widths[i]}}" for i, cell in enumerate(row)) + " |")
+        
+    return "\n".join([header_line, sep_line] + body_lines) + "\n"
+
+"""
+SQL Studio - Beekeeper Studio Clone
+Fast, beautiful, lightweight SQL client with unlimited free import/export (CSV, Excel, JSON, SQL).
+"""
+
+
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query, Response, Request
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -67,6 +100,76 @@ def get_connection(db_path: Optional[str] = None) -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON;")
     return conn
+
+def split_sql_statements(sql: str) -> List[str]:
+    """Robust SQL statement splitter respecting quotes and comments."""
+    statements = []
+    current = []
+    in_single_quote = False
+    in_double_quote = False
+    in_line_comment = False
+    in_block_comment = False
+    i = 0
+    n = len(sql)
+    
+    while i < n:
+        c = sql[i]
+        next_c = sql[i + 1] if i + 1 < n else ""
+        
+        # Comments check
+        if not in_single_quote and not in_double_quote:
+            if not in_line_comment and not in_block_comment:
+                if c == "-" and next_c == "-":
+                    in_line_comment = True
+                    current.append(c)
+                    current.append(next_c)
+                    i += 2
+                    continue
+                elif c == "/" and next_c == "*":
+                    in_block_comment = True
+                    current.append(c)
+                    current.append(next_c)
+                    i += 2
+                    continue
+            elif in_line_comment:
+                if c == "\n":
+                    in_line_comment = False
+                current.append(c)
+                i += 1
+                continue
+            elif in_block_comment:
+                if c == "*" and next_c == "/":
+                    in_block_comment = False
+                    current.append(c)
+                    current.append(next_c)
+                    i += 2
+                    continue
+                current.append(c)
+                i += 1
+                continue
+                
+        # Quotes check
+        if not in_line_comment and not in_block_comment:
+            if c == "'" and not in_double_quote:
+                in_single_quote = not in_single_quote
+            elif c == '"' and not in_single_quote:
+                in_double_quote = not in_double_quote
+            elif c == ";" and not in_single_quote and not in_double_quote:
+                stmt_str = "".join(current).strip()
+                if stmt_str:
+                    statements.append(stmt_str)
+                current = []
+                i += 1
+                continue
+                
+        current.append(c)
+        i += 1
+        
+    tail = "".join(current).strip()
+    if tail:
+        statements.append(tail)
+        
+    return statements
 
 def init_sample_data():
     """Optional helper to seed sample tables if manually requested."""
@@ -224,25 +327,25 @@ def execute_query(req: QueryRequest):
     conn = get_connection(req.db_path)
     cursor = conn.cursor()
     
-    # Split multiple statements if any
-    statements = [s.strip() for s in sql.split(";") if s.strip()]
+    # Split multiple statements accurately respecting quotes & comments
+    raw_statements = split_sql_statements(sql)
     last_columns = []
     last_rows = []
     affected_rows = 0
     
     try:
-        for idx, stmt in enumerate(statements):
-            is_last = (idx == len(statements) - 1)
+        for idx, stmt in enumerate(raw_statements):
+            is_last = (idx == len(raw_statements) - 1)
             cursor.execute(stmt)
-            if stmt.strip().upper().startswith(("INSERT", "UPDATE", "DELETE", "REPLACE", "CREATE", "DROP", "ALTER")):
-                affected_rows += cursor.rowcount if cursor.rowcount > 0 else 0
-                conn.commit()
+            if cursor.rowcount > 0:
+                affected_rows += cursor.rowcount
             
-            if is_last and cursor.description:
+            if cursor.description:
                 last_columns = [desc[0] for desc in cursor.description]
                 raw_rows = cursor.fetchmany(req.limit) if req.limit else cursor.fetchall()
                 last_rows = [list(r) for r in raw_rows]
                 
+        conn.commit()
         execution_time_ms = round((time.perf_counter() - start_time) * 1000, 2)
         return {
             "status": "success",
@@ -513,7 +616,7 @@ async def export_data(
             return response
             
         elif fmt_clean in ["markdown", "md"]:
-            md_str = df.to_markdown(index=False)
+            md_str = df_to_markdown_table(df)
             response = Response(content=md_str, media_type="text/markdown")
             response.headers["Content-Disposition"] = f'attachment; filename="{base_name}.md"'
             return response

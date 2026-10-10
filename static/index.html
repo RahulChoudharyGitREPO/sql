@@ -124,7 +124,47 @@
 
         <!-- ACTIVE TAB CONTAINER -->
         <div class="tab-content-area" id="tab-content-area">
-          <!-- Tab panels dynamically rendered -->
+          <!-- DEDICATED TABLE DATA VIEWER PANE (No top tab needed) -->
+          <div class="tab-pane" id="pane-table-viewer">
+            <div class="query-toolbar">
+              <div class="query-toolbar-left">
+                <button class="btn-tool" onclick="refreshActiveTableData()">
+                  <i class="fa-solid fa-rotate"></i> Refresh
+                </button>
+                <button class="btn-tool" onclick="openInsertRowModalForActiveTable()">
+                  <i class="fa-solid fa-plus"></i> Add Row
+                </button>
+              </div>
+              <div class="query-toolbar-right">
+                <div class="dropdown" id="export-table-dropdown">
+                  <button class="btn-tool" onclick="toggleDropdown('export-table-dropdown')">
+                    <i class="fa-solid fa-file-export"></i> Export Table <i class="fa-solid fa-chevron-down" style="font-size: 0.7rem;"></i>
+                  </button>
+                  <div class="dropdown-menu">
+                    <div class="dropdown-item" onclick="exportActiveTable('csv')"><i class="fa-solid fa-file-csv"></i> Export as CSV</div>
+                    <div class="dropdown-item" onclick="exportActiveTable('excel')"><i class="fa-solid fa-file-excel"></i> Export as Excel (.xlsx)</div>
+                    <div class="dropdown-item" onclick="exportActiveTable('json')"><i class="fa-solid fa-file-code"></i> Export as JSON</div>
+                    <div class="dropdown-item" onclick="exportActiveTable('sql')"><i class="fa-solid fa-database"></i> Export as SQL Inserts</div>
+                    <div class="dropdown-item" onclick="exportActiveTable('markdown')"><i class="fa-solid fa-table"></i> Export as Markdown</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="results-container" style="height: calc(100% - 42px);">
+              <div class="results-header">
+                <div class="results-stats" id="table-viewer-stats">
+                  <span>Table: <strong id="tv-table-name"></strong> <span id="tv-record-count"></span></span>
+                </div>
+                <div class="results-filter">
+                  <input type="text" id="tv-search-input" placeholder="Search in table..." oninput="searchActiveTableRows(this.value)">
+                </div>
+              </div>
+              <div class="results-grid-wrapper" id="table-viewer-grid">
+                <div class="loading-spinner"><i class="fa-solid fa-circle-notch fa-spin"></i> Loading table records...</div>
+              </div>
+            </div>
+          </div>
+          <!-- Query tab panels dynamically rendered -->
         </div>
 
       </main>
@@ -301,20 +341,34 @@
     </div>
   </div>
 
-  <!-- FLOATING "MADE BY RAHUL ❤️" POPUP CARD -->
-  <div id="made-by-card" class="made-by-card">
-    <div class="made-by-glow"></div>
-    <div class="made-by-inner">
-      <div class="made-by-avatar">
-        <i class="fa-solid fa-terminal"></i>
+      <!-- CENTER "MADE WITH ❤️ BY RAHUL" CARD -->
+    <div id="made-by-overlay" class="made-by-overlay" onclick="if(event.target===this) dismissMadeByCard()">
+      <div id="made-by-card" class="made-by-card-center">
+        <button class="made-by-close-btn" onclick="dismissMadeByCard()" title="Close">&times;</button>
+        
+        <div class="made-by-card-header">
+          <div class="made-by-icon-badge">
+            <i class="fa-solid fa-database"></i>
+          </div>
+          <div class="made-by-pill">SQL Studio <span>PRO</span></div>
+        </div>
+
+        <div class="made-by-card-body">
+          <h2 class="made-by-main-title">
+            Made with <span class="heart-beat">❤️</span> by <span class="author-highlight">Rahul</span>
+          </h2>
+          <p class="made-by-subtext">
+            Fast, Lightweight & 100% Free Database Client with Unlimited Import/Export.
+          </p>
+        </div>
+
+        <div class="made-by-card-footer">
+          <button class="btn-start-querying" onclick="dismissMadeByCard()">
+            <span>Start Querying</span> <i class="fa-solid fa-bolt"></i>
+          </button>
+        </div>
       </div>
-      <div class="made-by-info">
-        <div class="made-by-title">SQL Studio <span class="made-by-tag">Pro</span></div>
-        <div class="made-by-subtitle">Made with <span class="heart-pulse">❤️</span> by <strong>Rahul</strong></div>
-      </div>
-      <button class="made-by-close" onclick="dismissMadeByCard()" title="Close">&times;</button>
     </div>
-  </div>
 
   <!-- CodeMirror & Plugins -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.js"></script>
