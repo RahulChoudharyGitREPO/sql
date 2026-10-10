@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SQL Studio — Beekeeper Clone</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- CodeMirror for Monaco-grade SQL editing -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/theme/dracula.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/hint/show-hint.min.css">
+
+  <link rel="icon" type="image/png" href="app_icon.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="dark-theme">
+  <div id="app" class="app-container">
+    
+    <!-- TOP HEADER -->
+    <header class="app-header">
+      <div class="header-left">
+        <div class="brand">
+          <img src="app_icon.png" alt="SQL Studio" class="brand-img" style="width: 24px; height: 24px; border-radius: 5px;">
+          <span class="brand-title">SQL Studio</span>
+          <span class="brand-badge">PRO FREE</span>
+          <span id="update-badge" class="update-badge" style="display:none;" onclick="openUpdateModal()" title="New version available! Click to update.">
+            <i class="fa-solid fa-sparkles"></i> Update Available
+          </span>
+        </div>
+        <div class="db-selector-wrapper">
+          <i class="fa-solid fa-database db-icon"></i>
+          <span id="active-db-name" class="active-db-name" title="Click to switch DB">workspace.db</span>
+          <button class="btn-icon" id="btn-switch-db" title="Switch or Create Database">
+            <i class="fa-solid fa-chevron-down"></i>
+          </button>
+        </div>
+      </div>
+
+      <div class="header-center">
+        <div class="quick-status" id="quick-status">
+          <span class="status-dot online"></span>
+          <span id="status-text">Ready</span>
+        </div>
+      </div>
+
+      <div class="header-right">
+        <button class="btn btn-secondary" id="btn-open-import" title="Free Unlimited Import">
+          <i class="fa-solid fa-file-import"></i> Import (CSV/Excel/JSON)
+        </button>
+        <button class="btn btn-primary" id="btn-new-query" title="New Query Tab (Ctrl+T)">
+          <i class="fa-solid fa-plus"></i> New Query
+        </button>
+      </div>
+    </header>
+
+    <!-- MAIN BODY -->
+    <div class="main-layout">
+      
+      <!-- LEFT SIDEBAR -->
+      <aside class="sidebar">
+        <!-- Sidebar Navigation Tabs -->
+        <div class="sidebar-nav">
+          <button class="sidebar-nav-btn active" data-view="tables" title="Tables & Views">
+            <i class="fa-solid fa-table-cells"></i> Tables
+          </button>
+          <button class="sidebar-nav-btn" data-view="saved" title="Saved Queries">
+            <i class="fa-solid fa-bookmark"></i> Saved
+          </button>
+          <button class="sidebar-nav-btn" data-view="history" title="Query History">
+            <i class="fa-solid fa-clock-rotate-left"></i> History
+          </button>
+        </div>
+
+        <!-- Sidebar Content: Tables View -->
+        <div class="sidebar-section active" id="sidebar-tables">
+          <div class="sidebar-search">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input type="text" id="table-search" placeholder="Search tables...">
+            <button id="btn-refresh-tables" title="Refresh Tables">
+              <i class="fa-solid fa-rotate"></i>
+            </button>
+          </div>
+          <div class="tables-tree" id="tables-list">
+            <!-- Dynamic tables list -->
+            <div class="loading-spinner"><i class="fa-solid fa-circle-notch fa-spin"></i> Loading...</div>
+          </div>
+        </div>
+
+        <!-- Sidebar Content: Saved Queries -->
+        <div class="sidebar-section" id="sidebar-saved">
+          <div class="sidebar-header-sm">
+            <span>SAVED QUERIES</span>
+          </div>
+          <div class="saved-list" id="saved-queries-list">
+            <!-- Dynamic saved queries -->
+          </div>
+        </div>
+
+        <!-- Sidebar Content: History -->
+        <div class="sidebar-section" id="sidebar-history">
+          <div class="sidebar-header-sm">
+            <span>RECENT EXECUTION HISTORY</span>
+          </div>
+          <div class="history-list" id="history-queries-list">
+            <!-- Dynamic history -->
+          </div>
+        </div>
+      </aside>
+
+      <!-- CENTER WORKSPACE -->
+      <main class="workspace">
+        
+        <!-- TABS BAR -->
+        <div class="tabs-bar" id="tabs-bar">
+          <!-- Dynamic Tabs -->
+          <button class="btn-new-tab" id="btn-add-tab" title="New Query Tab">
+            <i class="fa-solid fa-plus"></i>
+          </button>
+        </div>
+
+        <!-- ACTIVE TAB CONTAINER -->
+        <div class="tab-content-area" id="tab-content-area">
+          <!-- Tab panels dynamically rendered -->
+        </div>
+
+      </main>
+    </div>
+
+    <!-- STATUS BAR -->
+    <footer class="status-bar">
+      <div class="status-left">
+        <span id="sb-db-info"><i class="fa-solid fa-server"></i> SQLite Local</span>
+        <span class="divider">|</span>
+        <span id="sb-tables-count">3 Tables</span>
+      </div>
+      <div class="status-right">
+        <span id="sb-time-info"><i class="fa-solid fa-bolt"></i> 0.0 ms</span>
+        <span class="divider">|</span>
+        <span>Ctrl + Enter to Execute</span>
+      </div>
+    </footer>
+
+  </div>
+
+  <!-- IMPORT MODAL -->
+  <div class="modal-overlay" id="modal-import">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-file-import"></i> Free Unlimited Data Import</h3>
+        <button class="modal-close" onclick="closeModal('modal-import')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">Import any size dataset into SQLite with zero paywalls. Supports <strong>CSV, Excel (.xlsx/.xls), JSON, and SQL dumps</strong>.</p>
+        
+        <div class="dropzone" id="import-dropzone">
+          <i class="fa-solid fa-cloud-arrow-up dropzone-icon"></i>
+          <p class="dropzone-text">Drag & drop your file here, or <span class="browse-link">browse files</span></p>
+          <span class="dropzone-sub">Supported: .csv, .xlsx, .xls, .json, .sql</span>
+          <input type="file" id="import-file-input" style="display: none;" accept=".csv,.tsv,.xlsx,.xls,.json,.sql">
+        </div>
+
+        <div class="selected-file-info" id="selected-file-info" style="display: none;">
+          <i class="fa-solid fa-file-csv file-icon"></i>
+          <div class="file-details">
+            <span class="file-name" id="import-file-name">filename.csv</span>
+            <span class="file-size" id="import-file-size">120 KB</span>
+          </div>
+          <button class="btn-remove-file" id="btn-remove-file">&times;</button>
+        </div>
+
+        <div class="form-group">
+          <label>Target Table Name:</label>
+          <input type="text" id="import-table-name" placeholder="Leave blank to use filename" class="form-input">
+        </div>
+
+        <div class="form-group">
+          <label>If Table Already Exists:</label>
+          <select id="import-if-exists" class="form-select">
+            <option value="replace">Overwrite / Replace Table</option>
+            <option value="append">Append Rows to Existing Table</option>
+            <option value="fail">Fail if Table Exists</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('modal-import')">Cancel</button>
+        <button class="btn btn-primary" id="btn-do-import">
+          <i class="fa-solid fa-upload"></i> Start Import
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- DB SWITCHER MODAL -->
+  <div class="modal-overlay" id="modal-db-switch">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-database"></i> Switch or Create Database</h3>
+        <button class="modal-close" onclick="closeModal('modal-db-switch')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Create New Database File:</label>
+          <div class="input-with-button">
+            <input type="text" id="new-db-input" placeholder="e.g. ecommerce_analytics" class="form-input">
+            <button class="btn btn-primary" id="btn-create-db"><i class="fa-solid fa-plus"></i> Create</button>
+          </div>
+        </div>
+
+        <div class="modal-divider"><span>OR SELECT RECENT DATABASE</span></div>
+
+        <div class="db-list-modal" id="db-list-modal">
+          <!-- Dynamic DB files list -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SAVE QUERY MODAL -->
+  <div class="modal-overlay" id="modal-save-query">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-bookmark"></i> Save Query</h3>
+        <button class="modal-close" onclick="closeModal('modal-save-query')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Query Title:</label>
+          <input type="text" id="save-query-title" placeholder="e.g. 3-Day Store Moving Average" class="form-input">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('modal-save-query')">Cancel</button>
+        <button class="btn btn-primary" id="btn-confirm-save-query">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- UPDATE AVAILABLE MODAL (Persistent / Mandatory until updated) -->
+  <div class="modal-overlay" id="modal-update">
+    <div class="modal-card update-card">
+      <div class="modal-header update-header">
+        <div class="update-header-title">
+          <i class="fa-solid fa-cloud-arrow-down update-header-icon"></i>
+          <div>
+            <h3 id="update-modal-title">New Update Available!</h3>
+            <p class="update-modal-subtitle" id="update-version-tag">Version v1.0.1 is now ready to install.</p>
+          </div>
+        </div>
+      </div>
+      <div class="modal-body">
+        <div class="update-release-box">
+          <div class="update-release-header">
+            <span class="update-release-badge" id="update-badge-pill">v1.0.1</span>
+            <span class="update-release-date" id="update-release-date">Just now</span>
+          </div>
+          <div class="update-notes-body" id="update-release-notes">
+            Loading changelog and release notes...
+          </div>
+        </div>
+
+        <!-- Update Progress Section -->
+        <div class="update-progress-container" id="update-progress-container" style="display: none;">
+          <div class="update-progress-info">
+            <span id="update-progress-label">Downloading update package...</span>
+            <span id="update-progress-spinner"><i class="fa-solid fa-spinner fa-spin"></i></span>
+          </div>
+          <div class="update-progress-bar">
+            <div class="update-progress-fill" id="update-progress-fill"></div>
+          </div>
+          <p class="update-progress-desc">SQL Studio will automatically restart in a couple of seconds with the latest features applied.</p>
+        </div>
+      </div>
+      <div class="modal-footer update-footer" id="update-footer-actions">
+        <button class="btn btn-secondary" id="btn-update-later" onclick="closeModal('modal-update')">Remind Me Later</button>
+        <button class="btn btn-primary btn-update-action" id="btn-perform-update">
+          <i class="fa-solid fa-download"></i> Update & Restart Now
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CodeMirror & Plugins -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/sql/sql.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/hint/show-hint.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/hint/sql-hint.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/edit/matchbrackets.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/edit/closebrackets.min.js"></script>
+
+  <script src="app.js"></script>
+</body>
+</html>
