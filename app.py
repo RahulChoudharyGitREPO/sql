@@ -704,7 +704,7 @@ def save_query(req: SaveQueryRequest):
 # AUTO-UPDATER SYSTEM (GitHub Releases Integration)
 # ===========================================================================
 
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.0.1"
 GITHUB_REPO = "RahulChoudharyGitREPO/sql"
 
 def parse_version(v_str: str):
@@ -762,6 +762,7 @@ def check_update():
             
         return {
             "has_update": has_update,
+            "is_frozen": getattr(sys, 'frozen', False),
             "current_version": APP_VERSION,
             "latest_version": latest_tag,
             "release_name": data.get("name") or latest_tag,
